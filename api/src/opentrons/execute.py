@@ -203,7 +203,7 @@ def execute(
     protocol_name: str,
     propagate_logs: bool = False,
     log_level: str = "warning",
-    emit_runlog: Callable[[Dict[str, Any]], None] = None,
+    emit_runlog: Callable[[command_types.CommandMessage], None] = None,
     custom_labware_paths: List[str] = None,
     custom_data_paths: List[str] = None,
 ):
