@@ -1,4 +1,5 @@
 """Protocol run control and management."""
+import asyncio
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -179,6 +180,9 @@ class ProtocolRunner:
             protocol=protocol,
             context=context,
         )
+        # ensure the engine is stopped gracefully once the
+        # protocol file stops issuing commands
+        self._task_queue.set_cleanup_func(self._protocol_engine.finish)
 
     def _load_legacy(
         self,
@@ -187,15 +191,25 @@ class ProtocolRunner:
         protocol = self._legacy_file_reader.read(protocol_source)
         context = self._legacy_context_creator.create(protocol)
 
-        self._protocol_engine.add_plugin(
-            LegacyContextPlugin(
-                hardware_api=self._hardware_api,
-                protocol_context=context,
-            )
+        legacy_plugin = LegacyContextPlugin(
+            hardware_api=self._hardware_api,
+            protocol_context=context,
         )
+
+        self._protocol_engine.add_plugin(legacy_plugin)
 
         self._task_queue.set_run_func(
             func=self._legacy_executor.execute,
             protocol=protocol,
             context=context,
         )
+
+        async def clean_up(error: Optional[Exception]) -> None:
+            try:
+                await legacy_plugin.finalize()
+            finally:
+                # ensure the engine is stopped gracefully once the
+                # protocol file stops issuing commands
+                await self._protocol_engine.finish(error)
+
+        self._task_queue.set_cleanup_func(clean_up)

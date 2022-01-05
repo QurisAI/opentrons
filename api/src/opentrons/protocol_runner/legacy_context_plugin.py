@@ -1,6 +1,12 @@
 """Customize the ProtocolEngine to monitor and control legacy (APIv2) protocols."""
 from __future__ import annotations
-from typing import Callable, Optional, NamedTuple
+
+import asyncio
+from typing import (
+    Callable,
+    Optional,
+    NamedTuple,
+)
 
 from opentrons.commands.types import CommandMessage as LegacyCommand
 from opentrons.hardware_control import HardwareControlAPI
@@ -14,6 +20,7 @@ from .legacy_wrappers import (
     LegacyModuleLoadInfo,
 )
 from .legacy_command_mapper import LegacyCommandMapper
+from .thread_async_queue import ThreadAsyncQueue, QueueClosed
 
 
 class ContextUnsubscribe(NamedTuple):
@@ -23,6 +30,34 @@ class ContextUnsubscribe(NamedTuple):
     labware_broker: Callable[[], None]
     pipette_broker: Callable[[], None]
     module_broker: Callable[[], None]
+
+
+# NOTES:
+#
+# Worker thread queues up actions at its leisure
+#
+# Shoveler task doesn't need to support cancellation
+# because the queue of actions should be bounded and small at that point.
+#
+#
+# legacy.plugin.teardown() called automatically at some point
+#
+# Is it okay for tearing down the plugin to be blocking?
+#
+# How do I get an async event loop task to block until either:
+# * a single item can be retrieved from a queue.Queue (not an asyncio.Queue)
+# * the queue is closed
+# And sleep (yield) while blocking
+
+
+# Before we close the ProtocolEngine, any scheduled actions from the
+# legacy mapper must have made it in to that ProtocolEngine
+
+# .finalize method
+
+# TODO: Confirm that things get cleaned up when you cancel a protocol.
+
+# TODO: Run to ground why this is hanging
 
 
 class LegacyContextPlugin(AbstractPlugin):
@@ -56,22 +91,31 @@ class LegacyContextPlugin(AbstractPlugin):
         self._legacy_command_mapper = legacy_command_mapper or LegacyCommandMapper()
         self._unsubscribe: Optional[ContextUnsubscribe] = None
 
+        self._actions_to_dispatch = ThreadAsyncQueue[pe_actions.Action]()
+        self._action_shoveling_task: Optional[asyncio.Task[None]] = None
+
     def setup(self) -> None:
-        """Set up subscriptions to the context's message brokers."""
+        """Set up the plugin.
+
+        Called by Protocol Engine when the plugin is added to it.
+
+        * Subscribe to the legacy context's message brokers.
+        * Prepare a background task to pass legacy commands to Protocol Engine.
+        """
         context = self._protocol_context
 
         command_unsubscribe = context.broker.subscribe(
             topic="command",
-            handler=self._dispatch_legacy_command,
+            handler=self._handle_legacy_command,
         )
         labware_unsubscribe = context.labware_load_broker.subscribe(
-            callback=self._dispatch_labware_loaded
+            callback=self._handle_labware_loaded
         )
         pipette_unsubscribe = context.instrument_load_broker.subscribe(
-            callback=self._dispatch_instrument_loaded
+            callback=self._handle_instrument_loaded
         )
         module_unsubscribe = context.module_load_broker.subscribe(
-            callback=self._dispatch_module_loaded
+            callback=self._handle_module_loaded
         )
 
         self._unsubscribe = ContextUnsubscribe(
@@ -81,13 +125,32 @@ class LegacyContextPlugin(AbstractPlugin):
             module_broker=module_unsubscribe,
         )
 
+        self._action_shoveling_task = asyncio.create_task(self._shovel_all_actions())
+
     def teardown(self) -> None:
-        """Unsubscribe from the context's message brokers."""
+        """Unsubscribe from the context's message brokers.
+
+        Called by Protocol Engine when the engine stops.
+        """
         if self._unsubscribe:
             for unsubscribe in self._unsubscribe:
                 unsubscribe()
 
         self._unsubcribe = None
+
+    async def finalize(self) -> None:
+        """Inform the plugin that the APIv2 script has exited.
+
+        This method will wait until the plugin is finished sending commands
+        into the Protocol Engine, and then return.
+        You must call this method *before* stopping the Protocol Engine,
+        so those commands make it in first.
+        """
+        # TODO: Think through whether this can be merged into teardown().
+        # TODO: What if the engine is never started?
+        if self._action_shoveling_task is not None:
+            self._actions_to_dispatch.done_putting()
+            await self._action_shoveling_task
 
     def handle_action(self, action: pe_actions.Action) -> None:
         """React to a ProtocolEngine action."""
@@ -100,29 +163,39 @@ class LegacyContextPlugin(AbstractPlugin):
         ):
             self._hardware_api.pause(HardwarePauseType.PAUSE)
 
-    def _dispatch_legacy_command(self, command: LegacyCommand) -> None:
+    def _handle_legacy_command(self, command: LegacyCommand) -> None:
         pe_actions = self._legacy_command_mapper.map_command(command=command)
         for action in pe_actions:
-            self.dispatch_threadsafe(action)
+            self._actions_to_dispatch.put(action)
 
-    def _dispatch_labware_loaded(
-        self, labware_load_info: LegacyLabwareLoadInfo
-    ) -> None:
+    def _handle_labware_loaded(self, labware_load_info: LegacyLabwareLoadInfo) -> None:
         pe_command = self._legacy_command_mapper.map_labware_load(
             labware_load_info=labware_load_info
         )
-        self.dispatch_threadsafe(pe_actions.UpdateCommandAction(command=pe_command))
+        action = pe_actions.UpdateCommandAction(command=pe_command)
+        self._actions_to_dispatch.put(action)
 
-    def _dispatch_instrument_loaded(
+    def _handle_instrument_loaded(
         self, instrument_load_info: LegacyInstrumentLoadInfo
     ) -> None:
         pe_command = self._legacy_command_mapper.map_instrument_load(
             instrument_load_info=instrument_load_info
         )
-        self.dispatch_threadsafe(pe_actions.UpdateCommandAction(command=pe_command))
+        action = pe_actions.UpdateCommandAction(command=pe_command)
+        self._actions_to_dispatch.put(action)
 
-    def _dispatch_module_loaded(self, module_load_info: LegacyModuleLoadInfo) -> None:
+    def _handle_module_loaded(self, module_load_info: LegacyModuleLoadInfo) -> None:
         pe_command = self._legacy_command_mapper.map_module_load(
             module_load_info=module_load_info
         )
-        self.dispatch_threadsafe(pe_actions.UpdateCommandAction(command=pe_command))
+        action = pe_actions.UpdateCommandAction(command=pe_command)
+        self._actions_to_dispatch.put(action)
+
+    async def _shovel_all_actions(self) -> None:
+        while True:
+            try:
+                action = await self._actions_to_dispatch.get_async()
+            except QueueClosed:
+                break
+            else:
+                self.dispatch(action)

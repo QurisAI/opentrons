@@ -52,7 +52,10 @@ class AbstractPlugin(ActionHandler, ABC):
         return from_thread.run_sync(self._action_dispatcher.dispatch, action)
 
     def setup(self) -> None:
-        """Run any necessary setup steps prior to plugin usage."""
+        """Run any necessary setup steps prior to plugin usage.
+
+        Called when the plugin is added to a `ProtocolEngine`.
+        """
         ...
 
     def teardown(self) -> None:

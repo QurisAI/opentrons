@@ -106,13 +106,14 @@ def test_pause_action(
     decoy.verify(hardware_api.pause(PauseType.PAUSE), times=1)
 
 
-def test_broker_subscribe_unsubscribe(
+async def test_broker_subscribe_unsubscribe(
     decoy: Decoy,
     legacy_context: LegacyProtocolContext,
     legacy_command_mapper: LegacyCommandMapper,
     subject: LegacyContextPlugin,
 ) -> None:
     """It should subscribe to the brokers on setup and unsubscribe on teardown."""
+    print("Yes, the test is running")
     main_unsubscribe: Callable[[], None] = decoy.mock()
     labware_unsubscribe: Callable[[], None] = decoy.mock()
     instrument_unsubscribe: Callable[[], None] = decoy.mock()
@@ -134,8 +135,12 @@ def test_broker_subscribe_unsubscribe(
         legacy_context.module_load_broker.subscribe(callback=matchers.Anything())
     ).then_return(module_unsubscribe)
 
+    print("About to setup")
     subject.setup()
+    print("Done setup, about to teardown")
+    await subject.finalize()
     subject.teardown()
+    print("Done teardown")
 
     decoy.verify(
         main_unsubscribe(),
@@ -143,6 +148,7 @@ def test_broker_subscribe_unsubscribe(
         instrument_unsubscribe(),
         module_unsubscribe(),
     )
+    print("Done verify")
 
 
 async def test_main_broker_messages(
@@ -183,6 +189,8 @@ async def test_main_broker_messages(
     )
 
     await to_thread.run_sync(handler, legacy_command)
+
+    await subject.finalize()
 
     decoy.verify(
         action_dispatcher.dispatch(pe_actions.UpdateCommandAction(engine_command))
