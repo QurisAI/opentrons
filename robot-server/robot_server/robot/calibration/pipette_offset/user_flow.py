@@ -15,7 +15,6 @@ from opentrons.calibration_storage.types import (
     TipLengthCalNotFound,
     PipetteOffsetByPipetteMount,
 )
-from opentrons.config import feature_flags as ff
 from opentrons.hardware_control import (
     ThreadManager,
     CriticalPoint,
@@ -30,8 +29,6 @@ from robot_server.service.session.models.command_definitions import CalibrationC
 from robot_server.robot.calibration import util
 from robot_server.robot.calibration.constants import (
     TIP_RACK_LOOKUP_BY_MAX_VOL,
-    SHORT_TRASH_DECK,
-    STANDARD_DECK,
     POINT_ONE_ID,
     MOVE_TO_DECK_SAFETY_BUFFER,
     MOVE_TO_TIP_RACK_SAFETY_BUFFER,
@@ -90,8 +87,7 @@ class PipetteOffsetCalibrationUserFlow:
                 definition=CalibrationError.NO_PIPETTE_ON_MOUNT, mount=mount
             )
 
-        deck_load_name = SHORT_TRASH_DECK if ff.short_fixed_trash() else STANDARD_DECK
-        self._deck = Deck(load_name=deck_load_name)
+        self._deck = Deck()
 
         self._saved_offset_this_session = False
 
