@@ -1,21 +1,12 @@
 """Test Echo firmware."""
 import pytest
-import asyncio
-from typing import AsyncGenerator
-from opentrons_hardware.drivers.can_bus import CanDriver, CanMessage
+from opentrons_hardware.drivers.can_bus.abstract_driver import AbstractCanDriver
+from opentrons_hardware.drivers.can_bus import CanMessage
 from opentrons_ot3_firmware.arbitration_id import ArbitrationId
 
 
-@pytest.fixture
-async def driver(loop: asyncio.BaseEventLoop) -> AsyncGenerator[CanDriver, None]:
-    """Create CanDriver connected to OT-3 Emulator."""
-    driver = await CanDriver.from_env()
-    yield driver
-    driver.shutdown()
-
-
 @pytest.mark.requires_emulator
-async def test_send(driver: CanDriver) -> None:
+async def test_send(driver: AbstractCanDriver) -> None:
     """Verify sending a message to the emulator."""
     message = CanMessage(
         arbitration_id=ArbitrationId(id=0x1FFFFFFF), data=bytearray([1, 2, 3, 4])
