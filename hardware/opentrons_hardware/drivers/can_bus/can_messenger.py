@@ -3,9 +3,7 @@ import asyncio
 from typing import List, Optional
 import logging
 
-from opentrons_hardware.drivers.can_bus import (
-    CanDriver,
-)
+from opentrons_hardware.drivers.can_bus.abstract_driver import AbstractCanDriver
 from opentrons_ot3_firmware.arbitration_id import (
     ArbitrationId,
     ArbitrationIdParts,
@@ -42,7 +40,7 @@ class CanMessenger:
     To receive message notifications add a listener using add_listener
     """
 
-    def __init__(self, driver: CanDriver) -> None:
+    def __init__(self, driver: AbstractCanDriver) -> None:
         """Constructor.
 
         Args:
