@@ -11,7 +11,10 @@ from opentrons.drivers.rpi_drivers.gpio_simulator import SimulatingGPIOCharDev
 from opentrons.types import Mount
 
 try:
-    from opentrons_hardware.drivers.can_bus import CanDriver, CanMessenger
+    from opentrons_hardware.drivers.can_bus import CanMessenger, DriverSettings
+    from opentrons_hardware.drivers.can_bus.abstract_driver import AbstractCanDriver
+    from opentrons_hardware.drivers.can_bus.build import \
+        build_driver
     from opentrons_hardware.hardware_control.motion import create
     from opentrons_hardware.hardware_control.move_group_runner import MoveGroupRunner
     from opentrons_ot3_firmware.constants import NodeId
@@ -56,10 +59,10 @@ class OT3Controller:
         Returns:
             Instance.
         """
-        driver = await CanDriver.from_env()
+        driver = await build_driver(DriverSettings())
         return cls(config, driver=driver)
 
-    def __init__(self, config: RobotConfig, driver: CanDriver) -> None:
+    def __init__(self, config: RobotConfig, driver: AbstractCanDriver) -> None:
         """Construct.
 
         Args:
