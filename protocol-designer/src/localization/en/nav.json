@@ -9,16 +9,17 @@
     "file": "FILE",
     "help": "HELP",
     "liquids": "LIQUIDS",
-    "settings": "Settings"
+    "settings": "Settings",
+    "treatments": "TREATMENTS"
   },
   "terminal_item": {
     "__initial_setup__": "Starting Deck State",
     "__end__": "Final Deck State"
   },
   "title": {
-    "settings-features": "Protocol Designer",
-    "settings-app": "Protocol Designer",
-    "file-splash": "Protocol Designer"
+    "settings-features": "Quris Protocol Designer",
+    "settings-app": "Quris Protocol Designer",
+    "file-splash": "Quris Protocol Designer"
   },
   "subtitle": {
     "file-detail": "File Details",

@@ -53,6 +53,14 @@ function Nav(props: Props): JSX.Element {
             selected={props.currentPage === 'steplist'}
             onClick={props.handleClick('steplist')}
           />
+          <NavTab
+            id="NavTab_treatments"
+            iconName="flask-outline"
+            title={i18n.t('nav.tab_name.treatments')}
+            disabled={noCurrentProtocol}
+            selected={props.currentPage === 'steplist'}
+            onClick={props.handleClick('steplist')}
+          />
         </React.Fragment>
       }
       bottomChildren={
