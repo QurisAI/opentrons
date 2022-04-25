@@ -10,6 +10,7 @@
     "help": "HELP",
     "liquids": "LIQUIDS",
     "settings": "Settings",
+    "move-spheroid": "MOVE SPHEROIDS",
     "treatments": "TREATMENTS"
   },
   "terminal_item": {

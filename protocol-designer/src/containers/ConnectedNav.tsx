@@ -61,6 +61,14 @@ function Nav(props: Props): JSX.Element {
             selected={props.currentPage === 'steplist'}
             onClick={props.handleClick('steplist')}
           />
+          <NavTab
+            id="NavTab_spheroid_grouping"
+            iconName="move-spheroid"
+            title={i18n.t('nav.tab_name.move-spheroid')}
+            disabled={noCurrentProtocol}
+            selected={props.currentPage === 'move-spheroid'}
+            onClick={props.handleClick('move-spheroid')}
+          />
         </React.Fragment>
       }
       bottomChildren={

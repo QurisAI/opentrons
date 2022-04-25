@@ -7,6 +7,7 @@ import { DeckSetupManager } from '../components/DeckSetupManager'
 import { ConnectedFilePage } from '../containers/ConnectedFilePage'
 import { SettingsPage } from '../components/SettingsPage'
 import { LiquidsPage } from '../components/LiquidsPage'
+import { GroupSpheroidsPage } from "../components/GroupSpheroidsPage"
 import { Hints } from '../components/Hints'
 import { LiquidPlacementModal } from '../components/LiquidPlacementModal'
 import { LabwareSelectionModal } from '../components/LabwareSelectionModal'
@@ -33,6 +34,8 @@ function MainPanelComponent(props: Props): JSX.Element {
       return <ConnectedFilePage />
     case 'liquids':
       return <LiquidsPage />
+    case 'move-spheroid':
+      return <GroupSpheroidsPage />
     case 'settings-app':
       return <SettingsPage />
     default: {

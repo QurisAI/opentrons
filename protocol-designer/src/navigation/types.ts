@@ -5,3 +5,4 @@ export type Page =
   | 'steplist'
   | 'settings-app'
   | 'settings-features'
+  | 'move-spheroid'
